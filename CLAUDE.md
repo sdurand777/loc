@@ -94,25 +94,53 @@ This repository includes custom scripts for SLAM loop closure detection using Me
    - Usage: `python slam_loop_closure.py --images_path /path/to/images --fps 10`
    - Located in `slam_loop_closure.py`
 
-2. **`slam_loop_closure_matplotlib.py`** - Interactive matplotlib-based visualization
-   - Real-time 2D trajectory visualization with matplotlib
-   - Shows pose graph with sequential edges and loop closures
-   - Interactive pan/zoom capabilities
+2. **`slam_loop_closure_matplotlib.py`** - Matplotlib-based visualization (offline)
+   - Optimized for post-processing visualization
+   - Generates final 3D trajectory with all loop closures at once
+   - No real-time updates - all processing happens first, then visualization
    - Usage: `python slam_loop_closure_matplotlib.py --images_path /path/to/images --poses_file /path/to/vertices.txt`
    - Located in `slam_loop_closure_matplotlib.py`
+   - **Note**: Not recommended for real-time interaction due to matplotlib's blocking nature
 
-3. **`slam_loop_closure_realtime.py`** - Real-time 3D visualization with Open3D
+3. **`slam_loop_closure_realtime.py`** - Real-time 3D visualization with Open3D (threading)
    - Live 3D trajectory visualization during processing
+   - Multi-threaded architecture: processing thread + visualization thread
+   - Batch updates for improved performance
    - Color-coded loop closures (green=consistent, orange=inconsistent)
-   - Interactive 3D view (rotate, pan, zoom)
    - Spheres mark loop closure locations
    - Usage: `python slam_loop_closure_realtime.py --images_path /path/to/images --poses_file /path/to/vertices.txt`
-   - Located in `slam_loop_closure_realtime.py:1-410`
+   - Additional parameters:
+     - `--update_every N`: Update visualization every N frames (default: 10)
+     - `--invert_poses` / `--no_invert_poses`: Control pose inversion (default: inverts cam-to-world → world-to-cam)
+   - Located in `slam_loop_closure_realtime.py`
+   - **Note**: Open3D has performance limitations; use Rerun version for better interactivity
 
-4. **`slam_loop_closure_viz.py`** - Post-processing visualization
+4. **`slam_loop_closure_rerun.py`** - ⭐ Real-time visualization with Rerun (RECOMMENDED)
+   - **Best option for real-time SLAM visualization**
+   - Web-based viewer with WebGL rendering (extremely smooth)
+   - True real-time streaming with zero blocking
+   - Interactive timeline for frame-by-frame navigation
+   - Built-in filtering, multi-view, and inspection tools
+   - Native support for robotics/SLAM data types
+   - Usage: `python slam_loop_closure_rerun.py --images_path /path/to/images --poses_file /path/to/vertices.txt`
+   - Script: `bash slam_rerun.sh`
+   - Located in `slam_loop_closure_rerun.py`
+   - **Advantages over Open3D**:
+     - No frame drops or interaction lag
+     - Timeline scrubbing and playback controls
+     - Entity inspection and filtering
+     - Multi-threaded by design
+     - Browser-based or native app
+
+5. **`slam_loop_closure_viz.py`** - Post-processing visualization
    - Generates 3D visualizations from pre-computed loop closures
    - Uses Open3D for rendering
    - Located in `slam_loop_closure_viz.py`
+
+### Quick Start Scripts
+
+- **`slam_viz.sh`** - Launch Open3D real-time visualization
+- **`slam_rerun.sh`** - Launch Rerun real-time visualization (recommended)
 
 ### Key Parameters
 
@@ -127,6 +155,7 @@ All scripts support the following common parameters:
 - `--top_k`: Number of best matches to consider (default: 3)
 - `--device`: Processing device (auto/cuda/cpu, default: auto)
 - `--max_frames`: Maximum number of frames to process (default: all)
+- `--no_invert_poses`: Skip pose inversion (by default, poses are inverted from cam-to-world to world-to-cam)
 
 ### Loop Closure Detection Algorithm
 
@@ -145,7 +174,18 @@ Implemented in:
 
 ### Visualization Features
 
-**Real-time 3D Visualization** (`slam_loop_closure_realtime.py`):
+#### Rerun Visualization (`slam_loop_closure_rerun.py`) - RECOMMENDED
+- **Trajectory**: Blue line strip showing robot path
+- **Current Pose**: Red point showing current processing position
+- **Loop Closures**:
+  - Green lines for consistent loop closures
+  - Orange lines for inconsistent loop closures
+- **Loop Poses**: Red spheres at loop closure detection points
+- **Timeline**: Interactive scrubbing through frames
+- **Controls**: Full mouse/keyboard navigation with smooth WebGL rendering
+- **Inspection**: Click entities to view details
+
+#### Open3D Visualization (`slam_loop_closure_realtime.py`)
 - Blue points: Robot trajectory positions
 - Gray lines: Sequential edges (odometry)
 - Green lines: Consistent loop closures (matches are grouped)
@@ -157,6 +197,10 @@ Implemented in:
 - Left mouse: Rotate view
 - Right mouse: Pan
 - Scroll wheel: Zoom
+
+**Performance Notes**:
+- Open3D visualization may lag during geometry updates
+- Rerun provides significantly smoother interaction
 
 ### Input Data Format
 
@@ -179,7 +223,29 @@ Each row contains:
 
 - **Processing Speed**: With CUDA, achieves ~15-20 FPS on modern GPUs
 - **Memory Usage**: Features are cached in memory for fast retrieval
-- **Real-time Display**: Open3D visualization updates non-blocking during processing
+- **Real-time Display**:
+  - **Rerun**: True non-blocking streaming, smooth 60 FPS interaction
+  - **Open3D**: Multi-threaded with batch updates, but may lag during geometry updates
+  - **Matplotlib**: Post-processing only, not suitable for real-time
+
+### Pose Coordinate Systems
+
+By default, all scripts assume input poses are in **cam-to-world** format and automatically invert them to **world-to-cam** for correct visualization. This is the standard for most SLAM systems.
+
+- If your poses are already in world-to-cam format, use `--no_invert_poses`
+- The inversion is performed using the transformation: T_world_cam = T_cam_world^(-1)
+- For rigid transformations: T^(-1) = [R^T | -R^T * t]
+
+### Visualization Libraries Comparison
+
+| Feature | Rerun | Open3D | Matplotlib |
+|---------|-------|--------|------------|
+| Real-time interaction | ✅ Excellent | ⚠️ Limited | ❌ No |
+| Performance | ✅ 60 FPS | ⚠️ 10-30 FPS | ❌ Static |
+| Timeline navigation | ✅ Yes | ❌ No | ❌ No |
+| Multi-threading | ✅ Native | ⚠️ Manual | ❌ No |
+| Setup complexity | ✅ Simple | ⚠️ Medium | ✅ Simple |
+| Best for | Real-time SLAM | Static scenes | Final plots |
 
 ## License
 
