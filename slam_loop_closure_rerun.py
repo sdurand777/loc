@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 import numpy as np
 import csv
+import shutil
 
 import torch
 from PIL import Image
@@ -222,6 +223,18 @@ def main():
     print("Vous pouvez interagir librement pendant le traitement!")
     print("="*80 + "\n")
 
+    # Créer les dossiers pour les paires d'images
+    loop_pairs_dir = Path("loop_pairs")
+    good_loops_dir = loop_pairs_dir / "good_loops"
+    bad_loops_dir = loop_pairs_dir / "bad_loops"
+
+    good_loops_dir.mkdir(parents=True, exist_ok=True)
+    bad_loops_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"📁 Dossiers de sauvegarde:")
+    print(f"   ✓ Good loops: {good_loops_dir.absolute()}")
+    print(f"   ✓ Bad loops:  {bad_loops_dir.absolute()}\n")
+
     # Préparation
     preprocess = get_preprocess_transform()
     all_features = []
@@ -278,6 +291,19 @@ def main():
 
                     if is_consistent:
                         consistent_loops += 1
+
+                    # Sauvegarder les paires d'images dans le bon dossier
+                    query_img_path = img_path
+                    loop_img_path = image_files[match_idx]
+
+                    # Choisir le dossier selon la cohérence temporelle
+                    target_dir = good_loops_dir if is_consistent else bad_loops_dir
+
+                    query_save_path = target_dir / f"query_{total_loops}.jpg"
+                    loop_save_path = target_dir / f"loop_{total_loops}.jpg"
+
+                    shutil.copy(query_img_path, query_save_path)
+                    shutil.copy(loop_img_path, loop_save_path)
 
                     # Visualiser la loop closure
                     color = [0, 255, 0] if is_consistent else [255, 128, 0]  # Green or Orange

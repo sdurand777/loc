@@ -1,7 +1,7 @@
 python slam_loop_closure_rerun.py \
     --images_path /home/ivm/pose_graph/pgSlam/scenario/imgs/ \
     --poses_file /home/ivm/pose_graph/pgSlam/scenario/vertices_stan.txt \
-    --fps 30 \
+    --fps 10 \
     --start_detection_frame 50 \
     --temporal_distance 50 \
     --similarity_threshold 0.55 \
