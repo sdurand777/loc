@@ -1,0 +1,24 @@
+# MegaLoc SLAM Loop Closure Dependencies
+# Installation: pip install -r requirements.txt
+
+# PyTorch (pour CPU - voir note ci-dessous pour GPU)
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Image processing
+Pillow>=9.0.0
+
+# Numerical computing
+numpy>=1.23.0
+
+# Visualization (Rerun SDK for real-time 3D visualization)
+rerun-sdk>=0.15.0
+
+# Optional but useful
+scipy>=1.9.0
+tqdm>=4.64.0
+
+# NOTE: Pour installation avec GPU CUDA support, utilisez plutôt:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# puis: pip install -r requirements.txt (pour le reste)

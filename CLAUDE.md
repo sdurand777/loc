@@ -62,6 +62,79 @@ The `hubconf.py` file defines the torch.hub interface and automatically download
 Pretrained weights are hosted at:
 `https://github.com/gmberton/MegaLoc/releases/download/v1.0/megaloc.torch`
 
+## Installation
+
+### Quick Installation (Automated Script)
+
+The easiest way to install all dependencies is using the automated installation script:
+
+```bash
+bash install_megaloc.sh
+```
+
+The script offers two installation modes:
+1. **System-wide installation** - Installs packages with `pip install --user`
+2. **Virtual environment** - Creates and uses a Python virtual environment (recommended)
+
+The script will:
+- Detect your Python version
+- Auto-detect GPU and install appropriate PyTorch version (CUDA or CPU)
+- Install all required dependencies (torch, torchvision, Pillow, numpy, rerun-sdk)
+- Install optional dependencies (scipy, tqdm)
+- Run tests to verify installation
+
+### Manual Installation
+
+If you prefer manual installation, use the `requirements.txt` file:
+
+```bash
+pip install -r requirements.txt
+```
+
+**Note**: For GPU support with CUDA, install PyTorch separately first:
+```bash
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install -r requirements.txt
+```
+
+### Combined Installation (MegaLoc + MapAnything)
+
+For the double validation system, use the combined installation:
+
+```bash
+bash install_combined.sh
+```
+
+This creates a unified environment with:
+- MegaLoc (Visual Place Recognition)
+- MapAnything (Pose Estimation from Meta)
+- Rerun SDK (3D Visualization)
+- All required dependencies
+
+**Prerequisites**:
+- MapAnything repository must be cloned first:
+  ```bash
+  cd /home/ivm
+  git clone https://github.com/facebookresearch/map-anything.git
+  ```
+
+The script will:
+- Create a virtual environment `megaloc_mapanything_env`
+- Auto-detect GPU and install appropriate PyTorch version
+- Install all dependencies from `requirements_combined.txt`
+- Install MapAnything from the local repository
+
+### Required Dependencies
+- `torch>=2.0.0` - Deep learning framework
+- `torchvision>=0.15.0` - Image transforms and utilities
+- `Pillow>=9.0.0` - Image loading and processing
+- `numpy>=1.23.0` - Numerical computing
+- `rerun-sdk>=0.15.0` - Real-time 3D visualization
+- `scipy>=1.9.0` - Scientific computing (optional)
+- `tqdm>=4.64.0` - Progress bars (optional)
+- `transformers>=4.30.0` - For MapAnything (combined installation only)
+- `accelerate>=0.20.0` - For MapAnything (combined installation only)
+
 ## Code Attribution
 
 Much of the SALAD aggregator code is adapted from:
@@ -117,11 +190,16 @@ This repository includes custom scripts for SLAM loop closure detection using Me
 
 4. **`slam_loop_closure_rerun.py`** - ⭐ Real-time visualization with Rerun (RECOMMENDED)
    - **Best option for real-time SLAM visualization**
-   - Web-based viewer with WebGL rendering (extremely smooth)
+   - Native viewer application with smooth rendering (launches automatically)
    - True real-time streaming with zero blocking
    - Interactive timeline for frame-by-frame navigation
    - Built-in filtering, multi-view, and inspection tools
    - Native support for robotics/SLAM data types
+   - Automatic saving of loop closure image pairs to disk:
+     - `loop_pairs/good_loops/`: Temporally consistent loop closures
+     - `loop_pairs/bad_loops/`: Inconsistent loop closures
+     - Each pair saved as `query_N.jpg` and `loop_N.jpg`
+   - Saves recording to `.rrd` file for later playback
    - Usage: `python slam_loop_closure_rerun.py --images_path /path/to/images --poses_file /path/to/vertices.txt`
    - Script: `bash slam_rerun.sh`
    - Located in `slam_loop_closure_rerun.py`
@@ -130,17 +208,44 @@ This repository includes custom scripts for SLAM loop closure detection using Me
      - Timeline scrubbing and playback controls
      - Entity inspection and filtering
      - Multi-threaded by design
-     - Browser-based or native app
+     - Native desktop application for best performance
 
 5. **`slam_loop_closure_viz.py`** - Post-processing visualization
    - Generates 3D visualizations from pre-computed loop closures
    - Uses Open3D for rendering
    - Located in `slam_loop_closure_viz.py`
 
+6. **`slam_loop_closure_megaloc_mapanything.py`** - ⭐ Double Validation System (RECOMMENDED FOR HIGH PRECISION)
+   - **Combines MegaLoc and MapAnything for maximum reliability**
+   - First stage: MegaLoc detects loop closure candidates
+   - Second stage: MapAnything verifies each candidate with pose estimation
+   - Only displays loops validated by BOTH systems
+   - Real-time visualization with Rerun including:
+     - 🟢 **Green lines**: Validated loop closures (query ↔ loop)
+     - 🟣 **Purple lines**: MapAnything pose prediction (loop → estimated query)
+     - 🔴 **Red lines**: Position error (estimated → real query)
+     - 🔵 **Cyan spheres**: Estimated query positions by MapAnything
+     - 🟢 **Green spheres**: Real query/loop positions
+   - Automatic separation of validated/rejected loops:
+     - `loop_pairs_validated/megaloc_only/`: All MegaLoc candidates
+     - `loop_pairs_validated/double_validated/`: Only double-validated loops
+   - Usage: `python slam_loop_closure_megaloc_mapanything.py --images_path /path/to/images --poses_file /path/to/vertices.txt`
+   - Script: `bash slam_megaloc_mapanything.sh`
+   - Located in `slam_loop_closure_megaloc_mapanything.py`
+   - **Advantages**:
+     - Eliminates false positives from MegaLoc
+     - Provides pose geometry validation
+     - Visual feedback on pose estimation accuracy
+     - Confidence scores from both systems
+     - Best accuracy for critical applications
+
 ### Quick Start Scripts
 
 - **`slam_viz.sh`** - Launch Open3D real-time visualization
 - **`slam_rerun.sh`** - Launch Rerun real-time visualization (recommended)
+- **`slam_megaloc_mapanything.sh`** - Launch double validation system (MegaLoc + MapAnything)
+- **`visualize_pair.sh`** - Visualize a single loop/query pair with MapAnything (3D reconstruction)
+- **`test_mapanything_pair.sh`** - Quick test with first validated pair
 
 ### Key Parameters
 
@@ -157,9 +262,22 @@ All scripts support the following common parameters:
 - `--max_frames`: Maximum number of frames to process (default: all)
 - `--no_invert_poses`: Skip pose inversion (by default, poses are inverted from cam-to-world to world-to-cam)
 
+#### Additional Parameters for Double Validation System
+
+The `slam_loop_closure_megaloc_mapanything.py` script has additional parameters:
+- `--megaloc_similarity_threshold`: MegaLoc detection threshold (default: 0.55)
+- `--mapanything_confidence_threshold`: MapAnything validation threshold (default: 0.5)
+  - Higher values = fewer but more reliable loops
+  - Lower values = more loops but potentially less accurate
+  - Recommended range: 0.4-0.7
+- `--mapanything_model`: MapAnything model to use (default: "facebook/map-anything")
+  - Alternative: "facebook/map-anything-apache" (Apache 2.0 license)
+
 ### Loop Closure Detection Algorithm
 
-The loop closure detection pipeline:
+#### Standard MegaLoc Pipeline
+
+The standard loop closure detection pipeline:
 
 1. **Feature Extraction**: Extract MegaLoc features from each frame sequentially
 2. **Similarity Search**: Compute cosine similarity between current frame and database
@@ -172,6 +290,36 @@ Implemented in:
 - `find_loop_closure()` - `slam_loop_closure.py:50-80`
 - `check_temporal_consistency()` - `slam_loop_closure.py:83-111`
 
+#### Double Validation Pipeline (MegaLoc + MapAnything)
+
+The double validation system adds an extra verification stage:
+
+1. **Stage 1 - MegaLoc Detection** (same as standard pipeline):
+   - Feature extraction with MegaLoc
+   - Similarity search and temporal filtering
+   - Initial loop candidates identification
+
+2. **Stage 2 - MapAnything Verification**:
+   - For each MegaLoc candidate:
+     - Load query and loop images
+     - Run MapAnything pose estimation
+     - Extract confidence scores from both views
+     - Compute combined confidence score
+   - Accept loop only if: `confidence >= mapanything_confidence_threshold`
+
+3. **Visualization**:
+   - Only display loops validated by BOTH systems in Rerun
+   - Separate storage for MegaLoc-only vs double-validated loops
+
+**Advantages**:
+- Eliminates false positives from appearance-based matching
+- Provides geometric verification via pose estimation
+- Dual confidence scores (appearance + geometry)
+- Ideal for safety-critical applications
+
+Implemented in:
+- `verify_loop_with_mapanything()` - `slam_loop_closure_megaloc_mapanything.py:182-232`
+
 ### Visualization Features
 
 #### Rerun Visualization (`slam_loop_closure_rerun.py`) - RECOMMENDED
@@ -182,8 +330,33 @@ Implemented in:
   - Orange lines for inconsistent loop closures
 - **Loop Poses**: Red spheres at loop closure detection points
 - **Timeline**: Interactive scrubbing through frames
-- **Controls**: Full mouse/keyboard navigation with smooth WebGL rendering
+- **Controls**: Full mouse/keyboard navigation with smooth rendering in native application
 - **Inspection**: Click entities to view details
+- **Image Pairs**: Automatically saved to `loop_pairs/` directory for offline analysis
+- **Recording**: Full session saved to `.rrd` file, replay with `rerun slam_loop_closures.rrd`
+
+#### Double Validation Visualization (`slam_loop_closure_megaloc_mapanything.py`) - GEOMETRIC VERIFICATION
+- **Trajectory**: Blue line strip showing robot path
+- **Current Pose**: Red point showing current processing position
+- **Validated Loop Closures** (passed both MegaLoc AND MapAnything):
+  - 🟢 **Green lines**: Connect real query pose to real loop pose
+  - 🟣 **Purple lines**: MapAnything prediction from loop to estimated query position
+  - 🔴 **Red lines**: Position error between estimated and real query position
+  - 🟢 **Green spheres**: Real query and loop positions (ground truth)
+  - 🔵 **Cyan spheres**: Estimated query position by MapAnything
+- **Geometric Interpretation**:
+  - Short red lines = accurate MapAnything pose estimation
+  - Long red lines = large estimation error (potential false positive)
+  - Purple lines show the relative transformation predicted by MapAnything
+- **Timeline**: Interactive scrubbing through frames
+- **Entity Filtering**: Can toggle different visualization layers (errors, predictions, ground truth)
+- **Recording**: Full session saved to `slam_megaloc_mapanything.rrd`
+
+This visualization allows you to:
+- Assess the geometric consistency of loop closures
+- Identify false positives by checking position errors
+- Validate that MapAnything predictions align with ground truth
+- Debug SLAM failures by inspecting pose estimation accuracy
 
 #### Open3D Visualization (`slam_loop_closure_realtime.py`)
 - Blue points: Robot trajectory positions
@@ -246,6 +419,212 @@ By default, all scripts assume input poses are in **cam-to-world** format and au
 | Multi-threading | ✅ Native | ⚠️ Manual | ❌ No |
 | Setup complexity | ✅ Simple | ⚠️ Medium | ✅ Simple |
 | Best for | Real-time SLAM | Static scenes | Final plots |
+
+### Output Files and Directories
+
+The SLAM loop closure scripts generate the following outputs:
+
+1. **Loop Closure Image Pairs** (`loop_pairs/`):
+   - `good_loops/` - Temporally consistent loop closures
+     - `query_N.jpg` - Query frame that detected the loop
+     - `loop_N.jpg` - Matched frame from the past
+   - `bad_loops/` - Inconsistent loop closures (matches scattered temporally)
+     - Same structure as good_loops
+
+2. **Double Validation Outputs** (`loop_pairs_validated/`) - From `slam_loop_closure_megaloc_mapanything.py`:
+   - `megaloc_only/` - All loop candidates detected by MegaLoc
+     - `query_N.jpg` - Query frame
+     - `loop_N.jpg` - Matched frame
+   - `double_validated/` - Only loops validated by BOTH MegaLoc AND MapAnything
+     - `query_N.jpg` - Query frame (validated)
+     - `loop_N.jpg` - Matched frame (validated)
+   - This separation allows easy comparison of MegaLoc candidates vs final validated loops
+
+3. **Rerun Recording** (`slam_loop_closures.rrd` or `slam_megaloc_mapanything.rrd`):
+   - Binary recording file containing full 3D visualization session
+   - Can be replayed with: `rerun slam_loop_closures.rrd`
+   - Allows offline inspection with timeline navigation
+   - Compatible with Rerun Viewer application
+   - For double validation system: Only contains validated loops in visualization
+
+4. **Visualization Outputs** (legacy scripts):
+   - `loop_closure_*.png` - Static visualization images (matplotlib/basic scripts)
+
+5. **MapAnything Pair Visualization** (`scene.ply` or custom name):
+   - 3D point cloud reconstruction from loop/query pair
+   - Generated by `mapanything_visualize_pair.py`
+   - Can be viewed with Open3D, MeshLab, or CloudCompare
+   - See `README_MAPANYTHING_PAIR.md` for details
+
+## MapAnything Single Pair Visualization
+
+For detailed analysis of individual loop closures, use the MapAnything pair visualization scripts.
+
+### Quick Test
+
+```bash
+bash test_mapanything_pair.sh
+```
+
+This automatically finds and visualizes the first validated loop pair.
+
+### Custom Pair
+
+```bash
+bash visualize_pair.sh <loop.jpg> <query.jpg> [output.ply]
+```
+
+Example:
+```bash
+bash visualize_pair.sh \
+    loop_pairs_validated/double_validated/loop_5.jpg \
+    loop_pairs_validated/double_validated/query_5.jpg \
+    reconstruction_5.ply
+```
+
+### Output
+
+The script generates:
+1. **Transformation matrices**:
+   - Loop camera pose (cam-to-world)
+   - Query camera pose (cam-to-world)
+   - Relative transformation (loop → query)
+
+2. **Transformation breakdown**:
+   - Translation vector (x, y, z in meters)
+   - Rotation (Euler angles in degrees)
+
+3. **Confidence scores**:
+   - Per-view mean/min/max confidence
+
+4. **3D point cloud** (PLY format):
+   - Colored 3D reconstruction
+   - Can be viewed with Open3D, MeshLab, CloudCompare
+
+### View Point Cloud
+
+```bash
+# With Open3D
+python -c "import open3d as o3d; pcd = o3d.io.read_point_cloud('scene.ply'); o3d.visualization.draw_geometries([pcd])"
+
+# With MeshLab
+meshlab scene.ply
+
+# With CloudCompare
+cloudcompare scene.ply
+```
+
+### Direct Python Usage
+
+```bash
+source megaloc_mapanything_env/bin/activate
+
+python mapanything_visualize_pair.py \
+    --loop path/to/loop.jpg \
+    --query path/to/query.jpg \
+    --output my_scene.ply \
+    --model facebook/map-anything
+```
+
+**See `README_MAPANYTHING_PAIR.md` for complete documentation.**
+
+## MapAnything with Custom Camera Intrinsics
+
+For accurate 3D reconstruction with known camera calibration parameters.
+
+### When to Use This
+
+Use `mapanything_pair_with_intrinsics.py` when you have:
+- Known camera calibration (K matrix: fx, fy, cx, cy)
+- Optionally: distortion coefficients (k1, k2, p1, p2, k3)
+- Need precise metric reconstruction
+
+### Usage
+
+```bash
+source megaloc_mapanything_env/bin/activate
+
+python mapanything_pair_with_intrinsics.py \
+    --loop loop.jpg \
+    --query query.jpg \
+    --fx 500.0 --fy 500.0 --cx 320.0 --cy 240.0 \
+    --output scene.glb
+```
+
+### With Distortion Correction
+
+If your images have lens distortion (fisheye, wide-angle):
+
+```bash
+python mapanything_pair_with_intrinsics.py \
+    --loop loop.jpg \
+    --query query.jpg \
+    --fx 500.0 --fy 500.0 --cx 320.0 --cy 240.0 \
+    --k1 -0.1 --k2 0.05 --p1 0.001 --p2 -0.001 --k3 0.0 \
+    --undistort \
+    --output scene.glb
+```
+
+This will:
+1. Undistort images using OpenCV
+2. Adjust intrinsics automatically
+3. Run MapAnything on corrected images
+4. Generate accurate 3D reconstruction
+
+### Quick Test
+
+Edit `test_intrinsics.sh` with your camera parameters and run:
+```bash
+bash test_intrinsics.sh
+```
+
+### Pre-configured for Your Camera
+
+If you have specific camera calibration parameters, use the pre-configured scripts:
+
+```bash
+# Quick test with your camera
+bash test_my_camera.sh
+
+# Custom pair with your camera
+bash mapanything_my_camera.sh <loop.jpg> <query.jpg> [output.glb]
+```
+
+These scripts are pre-configured with your camera intrinsics:
+- fx = fy = 322.580 pixels
+- cx = 259.260, cy = 184.882 pixels
+- Distortion: k1=-0.070, k2=0.076, p1=0.0012, p2=0.0010, k3=-0.018
+- **Automatic undistortion** enabled
+
+See `USAGE_MY_CAMERA.md` for details.
+
+### Camera Intrinsics Format
+
+Intrinsics matrix K (3×3):
+```
+K = [fx  0  cx]
+    [0  fy  cy]
+    [0   0   1]
+```
+
+Where:
+- `fx`, `fy`: Focal lengths in pixels
+- `cx`, `cy`: Principal point (optical center) in pixels
+
+Distortion coefficients (optional):
+- `k1`, `k2`, `k3`: Radial distortion
+- `p1`, `p2`: Tangential distortion
+
+### Output
+
+1. **Relative transformation matrix** (4×4)
+2. **Decomposed transformation**:
+   - Translation (x, y, z in meters)
+   - Rotation (Euler angles in degrees)
+3. **Confidence scores** per view
+4. **3D model** (GLB file with mesh + textures)
+
+**See `README_CUSTOM_INTRINSICS.md` for complete documentation.**
 
 ## License
 

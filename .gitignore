@@ -1,0 +1,39 @@
+# 3D model files (MapAnything outputs)
+*.glb
+*.ply
+
+# Rerun recordings
+*.rrd
+
+# Loop closure output directories
+loop_pairs/
+loop_pairs_validated/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+megaloc_mapanything_env/
+paire_pyra/
+paire_stereo/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

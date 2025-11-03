@@ -1,0 +1,51 @@
+# Combined Requirements for MegaLoc + MapAnything
+# Installation: bash install_combined.sh
+
+# ============================================================================
+# PyTorch (commun aux deux projets)
+# ============================================================================
+# NOTE: Pour GPU CUDA support, PyTorch sera installé via install_combined.sh
+# avec la commande adaptée à votre configuration CUDA
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# ============================================================================
+# MegaLoc Dependencies
+# ============================================================================
+
+# Image processing
+Pillow>=9.0.0
+
+# Numerical computing
+numpy>=1.23.0
+
+# Visualization (Rerun SDK for real-time 3D visualization)
+rerun-sdk>=0.15.0
+
+# Scientific computing
+scipy>=1.9.0
+
+# Progress bars
+tqdm>=4.64.0
+
+# ============================================================================
+# MapAnything Dependencies (sera installé depuis le repo GitHub)
+# ============================================================================
+# Le package mapanything sera installé via:
+# pip install -e /home/ivm/map-anything
+# (voir install_combined.sh)
+
+# Dépendances additionnelles pour MapAnything
+transformers>=4.30.0  # Pour les modèles HuggingFace
+accelerate>=0.20.0    # Pour l'optimisation GPU
+
+# ============================================================================
+# NOTE: Installation complète
+# ============================================================================
+# Pour installer l'environnement complet:
+# 1. bash install_combined.sh
+#    - Détecte automatiquement CUDA
+#    - Installe PyTorch avec support GPU si disponible
+#    - Installe toutes les dépendances
+#    - Installe MapAnything depuis le repo local

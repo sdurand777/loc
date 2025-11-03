@@ -178,8 +178,18 @@ def main():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     print("="*80)
 
-    # Initialiser Rerun
+    # Initialiser Rerun avec visualisateur natif
+    output_file = "slam_loop_closures.rrd"
     rr.init("SLAM Loop Closures", spawn=True)
+
+    print("\n" + "="*80)
+    print("📺 VISUALISATION RERUN (VISUALISATEUR NATIF)")
+    print("="*80)
+    print("🖥️  Le visualisateur natif Rerun s'ouvre automatiquement")
+    print("   Vous pouvez interagir avec la visualisation en temps réel!")
+    print("")
+    print("Les données seront aussi sauvegardées dans: " + output_file)
+    print("="*80 + "\n")
 
     # Charger les poses
     print(f"\n📍 Chargement des poses...")
@@ -325,13 +335,18 @@ def main():
         if (frame_idx + 1) % 50 == 0:
             print(f"   Progress: {frame_idx + 1}/{len(image_files)} frames")
 
+    # Sauvegarder le fichier Rerun
+    print(f"\n💾 Sauvegarde des données dans {output_file}...")
+    rr.save(output_file)
+
     print("\n" + "="*80)
     print("✅ TRAITEMENT TERMINÉ")
     print("="*80)
     print(f"Frames traitées: {len(image_files)}")
     print(f"Loop closures: {total_loops} (cohérentes: {consistent_loops})")
-    print("\nLa visualisation Rerun reste ouverte.")
-    print("Vous pouvez continuer à interagir avec elle!")
+    print(f"\n📊 Fichier de visualisation: {output_file}")
+    print(f"   Pour visualiser: rerun {output_file}")
+    print(f"   Ou ouvrez avec l'application Rerun depuis: https://github.com/rerun-io/rerun/releases")
 
 
 if __name__ == "__main__":
