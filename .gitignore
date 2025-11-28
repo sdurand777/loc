@@ -9,6 +9,9 @@
 loop_pairs/
 loop_pairs_validated/
 
+hierarchical_matches/
+loop_matches_megaloc/
+
 # Python
 __pycache__/
 *.py[cod]
