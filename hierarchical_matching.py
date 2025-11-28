@@ -342,15 +342,18 @@ def match_with_lightglue(extractor, matcher, img0_pil, img1_pil, query_rois, loo
             kpt0_in_roi = False
             kpt1_in_roi = False
 
-            for x1, y1, x2, y2 in query_rois:
-                if x1 <= kpt0[0] <= x2 and y1 <= kpt0[1] <= y2:
-                    kpt0_in_roi = True
-                    break
+            # for x1, y1, x2, y2 in query_rois:
+            #     if x1 <= kpt0[0] <= x2 and y1 <= kpt0[1] <= y2:
+            #         kpt0_in_roi = True
+            #         break
+            #
+            # for x1, y1, x2, y2 in loop_rois:
+            #     if x1 <= kpt1[0] <= x2 and y1 <= kpt1[1] <= y2:
+            #         kpt1_in_roi = True
+            #         break
 
-            for x1, y1, x2, y2 in loop_rois:
-                if x1 <= kpt1[0] <= x2 and y1 <= kpt1[1] <= y2:
-                    kpt1_in_roi = True
-                    break
+            kpt0_in_roi = True
+            kpt1_in_roi = True
 
             # Garder le match seulement si les deux keypoints sont dans les ROI
             if kpt0_in_roi and kpt1_in_roi:
@@ -693,18 +696,22 @@ def main():
                     print(f"\n  📊 Creating visualization...")
                     output_path = output_dir / f"hierarchical_{total_loops:03d}_query{frame_idx:05d}_loop{match_idx:05d}.png"
 
-                    visualize_hierarchical_matches(
-                        all_images_resized[frame_idx],
-                        all_images_resized[match_idx],
-                        patch_matches,
-                        grid_size,
-                        query_kpts,
-                        loop_kpts,
-                        fine_matches,
-                        best_similarity,
-                        output_path
-                    )
-                    print(f"  ✅ Loop #{total_loops} VALIDATED and saved\n")
+                    if len(fine_matches) > 200:
+                        visualize_hierarchical_matches(
+                            all_images_resized[frame_idx],
+                            all_images_resized[match_idx],
+                            patch_matches,
+                            grid_size,
+                            query_kpts,
+                            loop_kpts,
+                            fine_matches,
+                            best_similarity,
+                            output_path
+                        )
+                        print(f"  ✅ Loop #{total_loops} VALIDATED and saved\n")
+                    else:
+                        print(f"  ✅ Loop #{total_loops} NOT VALIDATED and not saved not enough fine_matches\n")
+
 
         # Progress
         if (frame_idx + 1) % 50 == 0:
