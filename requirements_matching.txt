@@ -1,0 +1,23 @@
+# Requirements for Hierarchical Matching Pipeline
+# MegaLoc → SuperPoint → LightGlue
+
+# Core dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.23.0
+Pillow>=9.0.0
+
+# Feature matching dependencies
+opencv-python>=4.8.0
+kornia>=0.7.0
+
+# Visualization
+matplotlib>=3.7.0
+
+# Optional but recommended
+scipy>=1.9.0
+tqdm>=4.64.0
+
+# NOTE: LightGlue must be installed from GitHub:
+# pip install git+https://github.com/cvg/LightGlue.git
+# Or use the install_matching.sh script
