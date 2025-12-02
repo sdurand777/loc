@@ -18,6 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import ConnectionPatch
+import time
 
 import torch
 from PIL import Image
@@ -602,19 +603,32 @@ def main():
 
     total_loops = 0
 
+    # Timing statistics
+    megaloc_times = []
+    superpoint_lightglue_times = []
+    total_frame_times = []
+
     # Main loop
     for frame_idx, img_path in enumerate(image_files):
+        frame_start_time = time.time()
+
         # Load image
         img_orig, img_resized, img_tensor = load_and_preprocess_image(img_path, preprocess)
         if img_tensor is None:
             continue
 
-        # Extract MegaLoc features
+        # Extract MegaLoc features (TIMED)
+        megaloc_start = time.time()
         global_feat, spatial_feat = extract_megaloc_features(megaloc_model, img_tensor, device)
+        megaloc_time = time.time() - megaloc_start
+        megaloc_times.append(megaloc_time)
+
         all_global_features.append(global_feat)
         all_spatial_features.append(spatial_feat)
         all_images_original.append(img_orig)
         all_images_resized.append(img_resized)
+
+        print(f"Frame {frame_idx:05d}: MegaLoc extraction: {megaloc_time*1000:.1f} ms", end="")
 
         # Loop closure detection
         if frame_idx >= args.start_detection_frame:
@@ -680,6 +694,9 @@ def main():
                     )
 
                     print(f"      Creating {len(query_rois)} ROI pairs from patches...")
+
+                    # SuperPoint + LightGlue timing
+                    sp_lg_start = time.time()
                     fine_matches, query_kpts, loop_kpts = match_with_lightglue(
                         superpoint,  # extractor
                         lightglue,   # matcher
@@ -689,14 +706,23 @@ def main():
                         loop_rois,
                         device
                     )
+                    sp_lg_time = time.time() - sp_lg_start
+                    superpoint_lightglue_times.append(sp_lg_time)
+
                     print(f"      ✓ SuperPoint: {len(query_kpts)} (query) + {len(loop_kpts)} (loop) keypoints")
                     print(f"      ✓ LightGlue: {len(fine_matches)} fine matches in ROI")
+                    print(f"      ⏱️  SuperPoint+LightGlue time: {sp_lg_time*1000:.1f} ms")
+
+                    # Calculate processing time (before visualization)
+                    processing_time = time.time() - frame_start_time
 
                     # Visualize
-                    print(f"\n  📊 Creating visualization...")
-                    output_path = output_dir / f"hierarchical_{total_loops:03d}_query{frame_idx:05d}_loop{match_idx:05d}.png"
-
                     if len(fine_matches) > 200:
+                        print(f"\n  ⏱️  TOTAL PROCESSING TIME (before save): {processing_time*1000:.1f} ms")
+                        print(f"\n  📊 Creating visualization...")
+                        output_path = output_dir / f"hierarchical_{total_loops:03d}_query{frame_idx:05d}_loop{match_idx:05d}.png"
+
+                        viz_start = time.time()
                         visualize_hierarchical_matches(
                             all_images_resized[frame_idx],
                             all_images_resized[match_idx],
@@ -708,20 +734,64 @@ def main():
                             best_similarity,
                             output_path
                         )
-                        print(f"  ✅ Loop #{total_loops} VALIDATED and saved\n")
-                    else:
-                        print(f"  ✅ Loop #{total_loops} NOT VALIDATED and not saved not enough fine_matches\n")
+                        viz_time = time.time() - viz_start
 
+                        total_time = time.time() - frame_start_time
+                        print(f"  ✅ Loop #{total_loops} VALIDATED and saved")
+                        print(f"  ⏱️  Visualization save time: {viz_time*1000:.1f} ms")
+                        print(f"  ⏱️  Total with save: {total_time*1000:.1f} ms\n")
+                    else:
+                        print(f"\n  ❌ Loop #{total_loops} NOT VALIDATED - insufficient fine matches ({len(fine_matches)} < 200)")
+                        print(f"  ⏱️  Total processing time: {processing_time*1000:.1f} ms\n")
+
+        # Calculate total frame time
+        total_frame_time = time.time() - frame_start_time
+        total_frame_times.append(total_frame_time)
+
+        # Print timing summary for this frame
+        if frame_idx < args.start_detection_frame:
+            print(f" | Total: {total_frame_time*1000:.1f} ms")
+        else:
+            print("")  # New line after the MegaLoc timing print
 
         # Progress
         if (frame_idx + 1) % 50 == 0:
-            print(f"\n   Progress: {frame_idx + 1}/{len(image_files)} frames processed")
+            avg_megaloc = np.mean(megaloc_times[-50:]) * 1000
+            avg_total = np.mean(total_frame_times[-50:]) * 1000
+            print(f"\n   Progress: {frame_idx + 1}/{len(image_files)} frames | "
+                  f"Avg MegaLoc: {avg_megaloc:.1f} ms | Avg Total: {avg_total:.1f} ms")
 
     print("\n" + "="*80)
     print("✅ PROCESSING COMPLETE")
     print("="*80)
     print(f"Frames processed: {len(image_files)}")
     print(f"Loop closures detected: {total_loops}")
+
+    # Print timing statistics
+    print("\n⏱️  TIMING STATISTICS")
+    print("="*80)
+    if len(megaloc_times) > 0:
+        print(f"MegaLoc feature extraction:")
+        print(f"  Average: {np.mean(megaloc_times)*1000:.1f} ms")
+        print(f"  Min:     {np.min(megaloc_times)*1000:.1f} ms")
+        print(f"  Max:     {np.max(megaloc_times)*1000:.1f} ms")
+        print(f"  Median:  {np.median(megaloc_times)*1000:.1f} ms")
+
+    if len(superpoint_lightglue_times) > 0:
+        print(f"\nSuperPoint + LightGlue matching (for loop closures only):")
+        print(f"  Average: {np.mean(superpoint_lightglue_times)*1000:.1f} ms")
+        print(f"  Min:     {np.min(superpoint_lightglue_times)*1000:.1f} ms")
+        print(f"  Max:     {np.max(superpoint_lightglue_times)*1000:.1f} ms")
+        print(f"  Median:  {np.median(superpoint_lightglue_times)*1000:.1f} ms")
+        print(f"  Count:   {len(superpoint_lightglue_times)} loops processed")
+
+    if len(total_frame_times) > 0:
+        print(f"\nTotal frame processing time:")
+        print(f"  Average: {np.mean(total_frame_times)*1000:.1f} ms")
+        print(f"  Min:     {np.min(total_frame_times)*1000:.1f} ms")
+        print(f"  Max:     {np.max(total_frame_times)*1000:.1f} ms")
+        print(f"  Median:  {np.median(total_frame_times)*1000:.1f} ms")
+
     print(f"\n📊 Visualizations saved to: {output_dir.absolute()}")
     print("\n💡 The visualizations show:")
     print("   • Green/yellow rectangles: MegaLoc patch correspondences")

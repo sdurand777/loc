@@ -456,6 +456,261 @@ The SLAM loop closure scripts generate the following outputs:
    - Can be viewed with Open3D, MeshLab, or CloudCompare
    - See `README_MAPANYTHING_PAIR.md` for details
 
+## Hierarchical Loop Closure Matching
+
+A three-stage hierarchical pipeline for robust and precise loop closure detection: **MegaLoc → SuperPoint → LightGlue**
+
+### Overview
+
+This pipeline combines three complementary methods to achieve both robustness and precision:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ LEVEL 1: MegaLoc (Global Vision)                           │
+├─────────────────────────────────────────────────────────────┤
+│ • Loop closure detection (global similarity)                │
+│ • Coarse patch matching                                     │
+│ • Output: Corresponding patch pairs above threshold         │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ LEVEL 2: SuperPoint (Local Keypoints)                      │
+├─────────────────────────────────────────────────────────────┤
+│ • Extract keypoints in MegaLoc patch regions only          │
+│ • Spatial masking to focus on relevant areas               │
+│ • Output: Dense keypoints and descriptors                  │
+└─────────────────────────────────────────────────────────────┘
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ LEVEL 3: LightGlue (Fine Matching)                         │
+├─────────────────────────────────────────────────────────────┤
+│ • Contextual matching with attention mechanism              │
+│ • Pixel-precise correspondences                             │
+│ • Output: High-quality matches with confidence scores       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Advantages
+
+1. **Efficiency**: SuperPoint only runs in relevant regions (not full image)
+2. **Robustness**: MegaLoc filters false positives before fine matching
+3. **Precision**: LightGlue provides sub-pixel correspondences
+4. **Scalability**: Guided matching is faster than exhaustive search
+5. **Performance**: ~60 ms per loop closure on modern GPUs
+
+### Installation
+
+```bash
+# Install matching dependencies
+pip install -r requirements_matching.txt
+
+# Or install manually
+pip install lightglue kornia opencv-python
+```
+
+Or use the automated installation script:
+
+```bash
+bash install_matching.sh
+```
+
+### Quick Start
+
+```bash
+# Basic usage
+bash run_hierarchical_matching.sh /path/to/images
+
+# With custom parameters
+bash run_hierarchical_matching.sh /path/to/images output_dir 30 100
+```
+
+### Direct Python Usage
+
+```bash
+python hierarchical_matching.py \
+    --images_path /path/to/images \
+    --output_dir hierarchical_matches \
+    --num_megaloc_patches 30 \
+    --patch_similarity_threshold 0.40 \
+    --min_patches 20 \
+    --roi_expansion 1.5 \
+    --similarity_threshold 0.55 \
+    --start_detection_frame 50 \
+    --temporal_distance 50 \
+    --max_frames 500 \
+    --device cuda
+```
+
+### Key Parameters
+
+| Parameter | Description | Default | Recommended Range |
+|-----------|-------------|---------|-------------------|
+| `--num_megaloc_patches` | Number of top MegaLoc patches to consider | 30 | 10-50 |
+| `--patch_similarity_threshold` | Minimum patch similarity | 0.40 | 0.35-0.60 |
+| `--min_patches` | Minimum patches required for refinement | 20 | 5-40 |
+| `--roi_expansion` | ROI expansion factor around patches | 1.5 | 1.0-3.0 |
+| `--similarity_threshold` | MegaLoc global similarity threshold | 0.55 | 0.45-0.70 |
+| `--start_detection_frame` | Start detection at frame N | 50 | 0-∞ |
+| `--temporal_distance` | Minimum temporal gap (frames) | 50 | 20-100 |
+
+### Parameter Tuning Guide
+
+**For more coverage** (permissive):
+```bash
+--num_megaloc_patches 50 \
+--patch_similarity_threshold 0.35 \
+--min_patches 15
+```
+
+**For higher precision** (strict):
+```bash
+--num_megaloc_patches 30 \
+--patch_similarity_threshold 0.50 \
+--min_patches 25 \
+--similarity_threshold 0.65
+```
+
+### Performance Metrics
+
+The script provides detailed timing information for each stage:
+
+**Typical performance** (on modern GPU):
+- **MegaLoc extraction**: ~20-25 ms/image
+- **SuperPoint + LightGlue**: ~30-40 ms/pair
+- **Total processing** (before visualization): ~50-70 ms/loop
+- **Visualization save** (matplotlib): ~2500-3000 ms (not needed in production)
+
+**Example output**:
+```
+  ⏱️  SuperPoint+LightGlue time: 34.8 ms
+  ⏱️  TOTAL PROCESSING TIME (before save): 58.3 ms
+  ⏱️  Visualization save time: 2712.2 ms
+  ⏱️  Total with save: 2770.5 ms
+```
+
+**Match quality**:
+- MegaLoc: 20-40 patch correspondences
+- SuperPoint: 300-800 keypoints in ROI
+- LightGlue: 200-500 fine matches (after filtering)
+
+### Output Files
+
+The pipeline generates visualizations in the output directory:
+
+```
+hierarchical_matches/
+├── hierarchical_001_query00150_loop00035.png
+├── hierarchical_002_query00237_loop00098.png
+└── ...
+```
+
+Each visualization shows:
+- **Green/yellow rectangles**: MegaLoc patch correspondences (color = similarity)
+- **Cyan circles**: SuperPoint keypoints in relevant regions
+- **Green stars**: Matched keypoints by LightGlue
+- **Purple lines**: Fine matches (color = confidence)
+
+### Timing Statistics
+
+At the end of processing, the script displays:
+
+```
+⏱️  TIMING STATISTICS
+================================================================================
+MegaLoc feature extraction:
+  Average: 22.3 ms
+  Min:     18.5 ms
+  Max:     28.7 ms
+  Median:  22.1 ms
+
+SuperPoint + LightGlue matching (for loop closures only):
+  Average: 35.4 ms
+  Min:     28.2 ms
+  Max:     48.6 ms
+  Median:  34.8 ms
+  Count:   42 loops processed
+
+Total frame processing time:
+  Average: 24.5 ms
+  Min:     19.1 ms
+  Max:     3127.8 ms
+  Median:  23.2 ms
+```
+
+### Pipeline Details
+
+**Stage 1: MegaLoc Guidance**
+- Extract global features for loop closure detection
+- Extract spatial features (cluster features from SALAD)
+- Find top-K patch matches above similarity threshold
+- Located in `find_patch_matches_megaloc()` - `hierarchical_matching.py:113-160`
+
+**Stage 2: SuperPoint Extraction**
+- Create ROIs from MegaLoc patches with expansion factor
+- Extract keypoints only in relevant regions
+- Much faster than full-image extraction
+- Located in `extract_superpoint_in_rois()` - `hierarchical_matching.py:215-277`
+
+**Stage 3: LightGlue Matching**
+- Match keypoints with attention-based neural network
+- Filter matches to keep only those in ROI
+- Produces pixel-precise correspondences with confidence
+- Located in `match_with_lightglue()` - `hierarchical_matching.py:280-358`
+
+### Use Cases
+
+1. **SLAM Loop Closure**: Replace traditional BoW methods for more robust detection + precise pose estimation
+2. **Visual Localization**: Accurate 6-DoF pose estimation (use matches with PnP/Essential Matrix)
+3. **Image Matching**: General-purpose hierarchical matching for various applications
+
+### Integration with Pose Estimation
+
+The fine matches from LightGlue can be used for geometric verification:
+
+**Essential Matrix** (with camera intrinsics):
+```python
+E, mask = cv2.findEssentialMat(query_points, loop_points, camera_matrix, method=cv2.RANSAC)
+_, R, t, mask = cv2.recoverPose(E, query_points, loop_points, camera_matrix)
+```
+
+**Fundamental Matrix** (without calibration):
+```python
+F, mask = cv2.findFundamentalMat(query_points, loop_points, method=cv2.RANSAC)
+```
+
+**PnP** (if 3D points are known):
+```python
+rvec, tvec, inliers = cv2.solvePnPRansac(points_3d, points_2d, camera_matrix, dist_coeffs)
+```
+
+### Troubleshooting
+
+**Too few matches**:
+```bash
+# Increase coverage
+--num_megaloc_patches 50 \
+--patch_similarity_threshold 0.35 \
+--min_patches 10
+```
+
+**Too many false positives**:
+```bash
+# Be more strict
+--num_megaloc_patches 30 \
+--patch_similarity_threshold 0.50 \
+--min_patches 25 \
+--similarity_threshold 0.65
+```
+
+**Loop candidates rejected (insufficient patches)**:
+```bash
+# Lower the patch requirements
+--patch_similarity_threshold 0.35 \
+--min_patches 15
+```
+
+**Complete documentation**: See `README_HIERARCHICAL_MATCHING.md`
+
 ## MapAnything Single Pair Visualization
 
 For detailed analysis of individual loop closures, use the MapAnything pair visualization scripts.
